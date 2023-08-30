@@ -1,6 +1,6 @@
 extern crate time;
 
-use std::{path::PathBuf, sync::Arc, borrow::Borrow, fs::read_to_string};
+use std::{path::PathBuf, sync::Arc, borrow::Borrow, fs::read_to_string, io::Read};
 use tokio::{net::{TcpListener, TcpStream}, io::{BufReader, AsyncBufReadExt, AsyncWriteExt, AsyncWrite, AsyncBufRead, AsyncRead}};
 use minijinja::{Environment, context};
 use http_bytes::{http, http::StatusCode};
@@ -10,24 +10,11 @@ const HOST: &str = "127.0.0.1:8080";
 
 #[tokio::main]
 async fn main() {
-    let mut env = Environment::new();
-    let template_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
-    println!("Getting templates from: {}", template_path.display());
-    for entry in WalkDir::new(&template_path) {
-        let entry = entry.unwrap();
-        if entry.file_type().is_file() {
-            let path = entry.path();
-            let path = path.strip_prefix(&template_path).unwrap();
-            let mut path = "/".to_string() + path.to_str().unwrap();
-            if path.ends_with(".j2") {
-                path = path[..path.len() - 3].to_string();
-            }
-            println!("Loading template: {}", path);
-            let content = read_to_string(entry.path()).unwrap();
-            env.add_template_owned(path.to_owned(), content).unwrap();
-        }
-    }
-    let env = Arc::new(env);
+    let argv = std::env::args().collect::<Vec<_>>();
+    let dev_mode = argv.contains(&"--dev".to_string());
+
+    
+    let env = Arc::new(create_env().await);
 
     // let reloader = AutoReloader::new(move |notifier| {
     //     let template_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
@@ -47,8 +34,14 @@ async fn main() {
             Err(e) => eprintln!("Error accepting connection: {}", e),
             Ok((stream, addr)) => {
                 println!("Got connection from: {}", addr);
-                let env = env.clone();
+                let env = if dev_mode {
+                    // Reload environment
+                    Arc::new(create_env().await)
+                } else {
+                    env.clone()
+                };
                 tokio::spawn(async move {
+                    stream.readable().await.unwrap();
                     let mut buffer = [0; 1024];
                     stream.try_read(&mut buffer).unwrap();
 
@@ -75,6 +68,27 @@ async fn main() {
             }
         }
     }
+}
+
+async fn create_env() -> Environment<'static> {
+    let mut env = Environment::new();
+    let template_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+    println!("Getting templates from: {}", template_path.display());
+    for entry in WalkDir::new(&template_path) {
+        let entry = entry.unwrap();
+        if entry.file_type().is_file() {
+            let path = entry.path();
+            let path = path.strip_prefix(&template_path).unwrap();
+            let mut path = "/".to_string() + path.to_str().unwrap();
+            if path.ends_with(".j2") {
+                path = path[..path.len() - 3].to_string();
+            }
+            println!("Loading template: {}", path);
+            let content = read_to_string(entry.path()).unwrap();
+            env.add_template_owned(path.to_owned(), content).unwrap();
+        }
+    }
+    env
 }
 
 async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>) -> Option<http::Response<Vec<u8>>> {

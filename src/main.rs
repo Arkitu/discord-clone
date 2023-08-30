@@ -16,17 +16,6 @@ async fn main() {
     
     let env = Arc::new(create_env().await);
 
-    // let reloader = AutoReloader::new(move |notifier| {
-    //     let template_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
-    //     println!("Watching templates in: {}", template_path.display());
-    //     let mut env = Environment::new();
-    //     env.set_loader(path_loader(&template_path));
-    //     notifier.watch_path(&template_path, true);
-
-    //     Ok(env)
-    // });
-    // let reloader = Arc::new(reloader);
-
     let tcp = TcpListener::bind(HOST).await.expect("Can't bind tcp listener");
 
     loop {
@@ -72,7 +61,7 @@ async fn main() {
 
 async fn create_env() -> Environment<'static> {
     let mut env = Environment::new();
-    let template_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+    let template_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public");
     println!("Getting templates from: {}", template_path.display());
     for entry in WalkDir::new(&template_path) {
         let entry = entry.unwrap();
@@ -134,6 +123,7 @@ async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environm
             }
         }
     };
+
     let res = match template.render(context! {}) {
         Ok(b) => b,
         Err(e) => {

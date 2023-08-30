@@ -1,0 +1,36 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: "Rubik";
+    background-color: #282828;
+    display: flex;
+    flex-flow: column;
+}
+
+#top_bar {
+    background-color: #19AA67;
+    padding: 10px;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0 0 0.7rem 0.7rem;
+
+    .small_logo {
+        width: 4rem;
+        height: 4rem;
+    }
+}
+
+#filter_panel {
+    display: flex;
+    width: 15rem;
+    margin: 3rem 1.5rem;
+    background: #323835;
+    border-radius: 25px;
+    flex: 1 1 auto;
+
+    #filter_panel_title {
+        color: #FFFFFF;
+        font-size: 24px;
+        margin: 2rem auto;
+    }
+}

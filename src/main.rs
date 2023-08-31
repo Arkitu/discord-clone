@@ -67,6 +67,9 @@ async fn create_env() -> Environment<'static> {
         let entry = entry.unwrap();
         if entry.file_type().is_file() {
             let path = entry.path();
+            if path.file_name().unwrap() == ".DS_Store" {
+                continue;
+            }
             let path = path.strip_prefix(&template_path).unwrap();
             let mut path = "/".to_string() + path.to_str().unwrap();
             if path.ends_with(".j2") {

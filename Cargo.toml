@@ -12,3 +12,5 @@ httparse = "*"
 http-bytes = "*"
 time = "*"
 walkdir = "*"
+headless_chrome = "*"
+anyhow = { version="*", features = ["backtrace"]}

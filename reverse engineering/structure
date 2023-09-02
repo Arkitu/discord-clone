@@ -1,0 +1,60 @@
+/// This file is used to reverse engineer the structure of the Pronote API
+/// This is the partial shema of the js files found in the Pronote web app
+
+GApplication = ObjetApplicationPNEspace(
+ObjetApplicationScoEspace(
+ObjetApplicationSco(
+ObjetApplication()
+  nomProduit = 'PRONOTE';
+  acces = ObjetAccesPN(
+  ObjetAcces(
+    utilisateur = {
+      identifiant: str,
+      password: str
+    }
+  )
+  )
+  fn lancer(
+      set this.acces
+      this.initialisation()
+      this.lancerRequeteParametres()
+  )
+  fn lancerRequeteParametres(
+      ObjetRequeteFonctionParametres(
+      ObjetRequeteConsultation(
+      ObjetRequeteJSON(
+        fn appelAsynchrone()
+      )
+      )
+        JSON = {
+          Uuid = lCommunication.serialiserIVAESPourSeveur()
+          identifiantNav // local value in storage
+        }
+        fn lancerRequete(
+            this.JSON = {
+                Uuid: args.uuidRSA,
+            };
+            this.appelAsynchrone();
+        )
+      ).lancerRequete()
+  )
+)
+  fn initialisation(
+      set lCommunication
+  )
+)
+)
+
+
+lCommunication = CommunicationProduit(
+  cleAES = ByteBuffer
+  ivAES = ByteBuffer
+  ivAESTemp = ByteBuffer = random
+
+  fn serialiserIVAESPourSeveur(
+      if (CommunicationProduit.optionsSecurite.http) {
+          return GCryptage.cryptageRSA.encrypter1024(this.ivAESTemp);
+      }
+      return forge.util.encode64(this.ivAESTemp.bytes(), 64);
+  )
+)

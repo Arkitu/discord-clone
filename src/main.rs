@@ -1,62 +1,91 @@
 extern crate time;
 
-use std::{path::PathBuf, sync::Arc, borrow::Borrow, fs::read_to_string, io::Read};
-use tokio::{net::{TcpListener, TcpStream}, io::{BufReader, AsyncBufReadExt, AsyncWriteExt, AsyncWrite, AsyncBufRead, AsyncRead}};
+use std::{path::PathBuf, sync::Arc, borrow::Borrow, fs::read_to_string};
+use tokio::{net::TcpListener, io::{AsyncWriteExt, AsyncWrite}};
 use minijinja::{Environment, context};
 use http_bytes::{http, http::StatusCode};
 use walkdir::WalkDir;
+use anyhow::Result;
+
+mod api;
 
 const HOST: &str = "127.0.0.1:8080";
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     let argv = std::env::args().collect::<Vec<_>>();
     let dev_mode = argv.contains(&"--dev".to_string());
-
     
     let env = Arc::new(create_env().await);
 
-    let tcp = TcpListener::bind(HOST).await.expect("Can't bind tcp listener");
+    let tcp = TcpListener::bind(HOST).await?;
 
-    loop {
-        match tcp.accept().await {
-            Err(e) => eprintln!("Error accepting connection: {}", e),
-            Ok((stream, addr)) => {
-                println!("Got connection from: {}", addr);
-                let env = if dev_mode {
-                    // Reload environment
-                    Arc::new(create_env().await)
-                } else {
-                    env.clone()
-                };
-                tokio::spawn(async move {
-                    stream.readable().await.unwrap();
-                    let mut buffer = [0; 1024];
-                    stream.try_read(&mut buffer).unwrap();
+    println!("Initializing API...");
+    let api = api::APIClient::new(None, true)?;
+    println!("API initialized !");
+    api.auth_demo().await?;
+    println!("Authenticated !");
+    api.navigate_to_homework().await?;
+    println!("to homework");
+    api.homework_go_to_date(time::Tm {
+        tm_year: 123,
+        tm_mon: 0,
+        tm_mday: 4,
+        tm_hour: 0,
+        tm_min: 0,
+        tm_sec: 0,
+        tm_wday: 0,
+        tm_yday: 0,
+        tm_isdst: 0,
+        tm_utcoff: 0,
+        tm_nsec: 0
+    }).await?;
+    println!("to date");
+    tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
+    api.screenshot(PathBuf::from("./screen.png"))?;
+    println!("screen");
 
-                    let mut headers = [httparse::EMPTY_HEADER; 64];
-                    let mut req = httparse::Request::new(&mut headers);
-                    if let Err(e) = req.parse(buffer.as_ref()) {
-                        eprintln!("Error parsing request: {}", e);
-                        let res = http_bytes::Response::builder()
-                            .status(StatusCode::BAD_REQUEST)
-                            .body(())
-                            .unwrap();
-                        if let Err(e) = write_empty_response(res, stream).await {
-                            eprintln!("Error writing response: {}", e);
-                        };
-                        return;
-                    }
+    // loop {
+    //     match tcp.accept().await {
+    //         Err(e) => eprintln!("Error accepting connection: {}", e),
+    //         Ok((stream, addr)) => {
+    //             println!("Got connection from: {}", addr);
+    //             let env = if dev_mode {
+    //                 // Reload environment
+    //                 Arc::new(create_env().await)
+    //             } else {
+    //                 env.clone()
+    //             };
+    //             let api = api.clone();
+    //             tokio::spawn(async move {
+    //                 stream.readable().await.unwrap();
+    //                 let mut buffer = [0; 1024];
+    //                 stream.try_read(&mut buffer).unwrap();
 
-                    if let Some(res) = handle_connection(req, env).await {
-                        if let Err(e) = write_response(res, stream).await {
-                            eprintln!("Error writing response: {}", e);
-                        }
-                    }
-                });
-            }
-        }
-    }
+    //                 let mut headers = [httparse::EMPTY_HEADER; 64];
+    //                 let mut req = httparse::Request::new(&mut headers);
+    //                 if let Err(e) = req.parse(buffer.as_ref()) {
+    //                     eprintln!("Error parsing request: {}", e);
+    //                     let res = http_bytes::Response::builder()
+    //                         .status(StatusCode::BAD_REQUEST)
+    //                         .body(())
+    //                         .unwrap();
+    //                     if let Err(e) = write_empty_response(res, stream).await {
+    //                         eprintln!("Error writing response: {}", e);
+    //                     };
+    //                     return;
+    //                 }
+
+    //                 if let Some(res) = handle_connection(req, env, api).await {
+    //                     if let Err(e) = write_response(res, stream).await {
+    //                         eprintln!("Error writing response: {}", e);
+    //                     }
+    //                 }
+    //             });
+    //         }
+    //     }
+    // }
+    Ok(())
 }
 
 async fn create_env() -> Environment<'static> {
@@ -83,7 +112,7 @@ async fn create_env() -> Environment<'static> {
     env
 }
 
-async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>) -> Option<http::Response<Vec<u8>>> {
+async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>, api: api::APIClient) -> Option<http::Response<Vec<u8>>> {
     let mut path = req.path.unwrap_or("/");
     println!("Got request for: {}", path);
     if path == "/" {
@@ -146,7 +175,6 @@ async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environm
 
     Some(res)
 }
-
 
 /// Code from this : https://docs.rs/simple-server/latest/src/simple_server/lib.rs.html#1-495
 /// but modified for tokio

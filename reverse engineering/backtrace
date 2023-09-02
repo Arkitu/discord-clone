@@ -1,0 +1,297 @@
+Start(
+    aParam = {
+        h: '2570409',
+        d: true, // Indique si c'est une démo
+        sCrA: true, // sansCryptageAES
+        sCoA: true, // sansCompressionAES
+        poll: true, // avecPollingActif
+        a: 3 // genreEspace
+    }
+) {
+    ObjetApplicationPNEspace() {
+        ObjetApplicationScoEspace() {
+            ObjetApplicationSco() {
+                this.nomProduit = 'PRONOTE'
+                this.donneesCentraleNotifications = new ObjetDonneesCentraleNotificationsSco() {
+                        this.compteurNotifsParOnglet = {}
+                        this.nbConversationEnCours = 0
+                        this.statutConnexionCommunication = TypeGenreStatutConnexion.GSC_Deconnecte
+                        this.compteurNotifsParOnglet = {}
+                        {   
+                            Invocateur.abonner('notification_communication', function(aNotifs) {
+                                for (let i = 0; i < aNotifs.length; i++) {
+                                    this.compteurNotifsParOnglet[aNotifs[i].onglet] = aNotifs[i];
+                                }
+                                this._notifSurModification({
+                                    notification_communication: true
+                                });
+                            }, this);
+                            Invocateur.abonner('modifier_notification_communication', function(aGenreOnglet, aModificateur) {
+                                if (aModificateur === 0) {
+                                    return;
+                                }
+                                if (!this.compteurNotifsParOnglet[aGenreOnglet]) {
+                                    this.compteurNotifsParOnglet[aGenreOnglet] = {
+                                        nb: 0,
+                                        onglet: aGenreOnglet
+                                    };
+                                }
+                                this.compteurNotifsParOnglet[aGenreOnglet].nb = (this.compteurNotifsParOnglet[aGenreOnglet].nb || 0) + aModificateur;
+                                this.nbNotifs += aModificateur;
+                                this._notifSurModification({
+                                    modifier_notification_communication: true
+                                });
+                            }, this);
+                            Invocateur.abonnerUnique('notification_chatVS', function(aListe) {
+                                this.listeNotifsChatVS = aListe;
+                            }
+                            .bind(this));
+                            Invocateur.abonner('modifier_nb_conversationEnCours', function(aNb) {
+                                this.nbConversationEnCours = aNb;
+                                this._notifSurModification();
+                            }, this);
+                            Invocateur.abonner(UtilsRequeteJSON.getIdentNotification('statutConnexion'), function(aStatut) {
+                                this.statutConnexionCommunication = aStatut;
+                            }
+                            .bind(this));
+                        }
+                        ObjetDonneesCentraleNotifications() {
+                            this.nbNotifs = 0
+                            {
+                                Invocateur.abonner(UtilsRequeteJSON.getIdentNotification('compteurCentraleNotif'), function(aCompteur) {
+                                    this.nbNotifs = aCompteur;
+                                    this._notifSurModification({
+                                        compteurCentraleNotif: true
+                                    });
+                                }, this);
+                                Invocateur.abonner(ObjetDonneesCentraleNotifications.typeNotif.masquerNbNotifs, function(aNbNotifs) {
+                                    this.nbNotifs = Math.max(0, this.nbNotifs - aNbNotifs);
+                                    this._notifSurModification({
+                                        masquerNbNotifs: true
+                                    });
+                                }, this);
+                            }
+                        }
+                    }
+                ObjetApplication() {
+                    this.nomProduit = 'INDEX'
+                    this.hauteurTitre = 20
+                    this.hauteurLigne = 20
+                    this.hauteurBandeau = 22
+                    this.idLigneSeparateur = GUID.getId() {
+                        // "id_1" qui s'incrémente à chaque appel
+                    };
+                    this.idLigneBandeau = GUID.getId()
+                    this.idBandeau = GUID.getId()
+                    this.idBreadcrumbCombo = 'breadcrumbBandeauCombo'
+                    this.idBreadcrumb = 'breadcrumbBandeau'
+                    this.idBreadcrumbPerso = 'breadcrumbBandeauPerso'
+                    this.estPrimaire = false
+                    this._objetMessage = null
+                    this.messageInformatif = new ObjetMessageInformatif();
+                    {
+                        Invocateur.abonner(ObjetInvocateur.events.modificationModeExclusif, _setModeExclusif, this);
+                        Invocateur.abonner(ObjetInvocateur.events.erreurCommunication, this.finSession, this);
+                        ZoneFenetre.idConteneurApp = this.getIdConteneur();
+                        if (!window.PointerEvent) {
+                            deferLoadingScript.load('pep_poly', {
+                                done() {}
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }.lancer( // ObjetApplicationSco
+        aParam = {
+            h: '2570409',
+            d: true, // Indique si c'est une démo
+            sCrA: true, // sansCryptageAES
+            sCoA: true, // sansCompressionAES
+            poll: true, // avecPollingActif
+            a: 3 // genreEspace
+        }
+    ) {
+        Invocateur.evenement(ObjetInvocateur.events.initChiffrement, aParam); // Définit les options de sécurité (CommunicationProduit.optionsSecurite)
+        const lParametres = {
+            genreEspace: aParam.a,                  --> 3
+            numeroJeton: aParam.e ? aParam.e : -1,  --> -1
+            cleJeton: aParam.f ? aParam.f : '',     --> ''
+            genreAcces: aParam.g ? aParam.g : 0,    --> 0
+            numeroSession: aParam.h,                --> '2570409'
+            forcerInscription: aParam.fi,           --> undefined
+            page: aParam.p                          --> undefined
+        };
+        this.acces = new ObjetAccesPN(
+                aGenreAcces = lParametres.genreAcces,        --> 0
+                aGenreEspace = lParametres.genreEspace,      --> 3
+                aGenreOnglet = 0,
+                aGenreSousOnglet = 0,
+                aNumeroRessource = lParametres.numeroJeton,  --> -1
+                aNumeroRessourceSecondaire = 0,
+                '',
+                ''
+            ) {
+                ObjectAccess(/* same args */) {
+                    this.genre = aGenreAcces;                                     --> 0
+                    this.genreEspace = aGenreEspace;                              --> 3  // 3 = HttpAcces_ConnexionJetonEspace
+                    this.genreOnglet = aGenreOnglet;                              --> 0
+                    this.genreSousOnglet = aGenreSousOnglet;                      --> 0
+                    this.numeroRessource = aNumeroRessource;                      --> -1
+                    this.numeroRessourceSecondaire = aNumeroRessourceSecondaire;  --> 0
+                    this.avecRecherche = false;
+                    this.utilisateur = {};
+                    this.utilisateur.nom = '';
+                    this.utilisateur.libelleRecherche = '';
+                    this.utilisateur.identifiant = '';
+                    this.utilisateur.password = '';
+                }
+            }
+        if (this.acces.estConnexionCAS() || this.acces.estConnexionCookie()) {  --> true
+            this.acces.setIdentification(
+                    aIdentifiant = lParametres.numeroJeton,  --> -1
+                    aPassword = lParametres.cleJeton         --> ''
+                ) {
+                    this.utilisateur.identifiant = aIdentifiant;                    --> -1
+                    this.utilisateur.password = aPassword ? aPassword : '@direct';  --> '@direct'
+                }
+        }
+        ;this.droits = new ObjetDroitsPN(); // Liste des permissions de l'utilisateur
+        this.parametresUtilisateur = new (require('ObjetParametresUtilisateur.js')); // Paramètres de l'utilisateur
+        IE.optionsEspaceLocal = new ObjetOptionsEspaceLocalPN({
+            nomProduit: this.nomProduit,     --> "PRONOTE"
+            espace: lParametres.genreEspace  --> 3
+        });
+        deferLoadingScript.setOptions({
+            done() {},
+            fail(aNom) {
+                GApplication.getCommunication().sendLogClient(`erreur chargement script defer : ${aNom}`);
+                UtilitaireDeconnexion.deconnexionEchecChargement();
+            },
+            messageChargement: GTraductions.getValeur('connexion.Chargement')
+        }); // Chargement de `eleve_defer.js`
+        this.initialisation(
+            aParametres = lParametres = {
+                genreEspace: 3
+                numeroJeton: -1
+                cleJeton: ''
+                genreAcces: 0
+                numeroSession: '2570409'
+                forcerInscription: undefined
+                page: undefined
+            }
+        ) { // ObjetApplicationScoEspace
+            UtilitaireMenuContextuelNatif.desactiverSurElement($(document));
+            const lPageInscription = '?page={"Onglet":' + EGenreOnglet.InscriptionsEtablissement + '}';
+            if (decodeURI(window.location.search) === lPageInscription) {
+                const lpage = window.location.pathname;
+                history.replaceState(null, '', lpage);
+            }
+            try {
+                this.setCommunication(
+                    new CommunicationProduit(
+                        aParametres.genreEspace,   --> 3
+                        aParametres.numeroSession  --> '2570409'
+                    ) {
+                        this._attenteEnCours = false;
+                        this.FDureeEnCours = 1000 * 0.5;
+                        this._dureeTimerPresence = CommunicationProduit.cDureeTimerPresence;
+                        this.GenreEspace = AGenreEspace;  --> 3
+                        this.NomRequete = 'appelfonction';
+                        this.pileRequetes = [];
+                        this.compteurRequete = 0;
+                        this.NumeroDeSession = aNumeroSession ? aNumeroSession : 0;  --> '2570409'
+                        this.NumeroOrdreCommunication = 1;
+                        this.cleAES = new forge.util.ByteBuffer(); // AES = Advanced Encryption Standard
+                        this.ivAES = new forge.util.ByteBuffer(); // IV = Initialisation Vector
+                        this.ivAESTemp = new forge.util.ByteBuffer(forge.random.generate(16));
+                        let lNom = 'GCommunication';
+                        this.getNom = function() {
+                            return lNom;
+                        }
+                        ;
+                        this.setNom = function(aNom) {
+                            lNom = aNom;
+                        }
+                        ;
+                        this.backupAjax = {
+                            nbBackupEchec: 20,
+                            delaiTimeoutEchecReseau: 30 * 60 * 1000,
+                            delaiRepetitionEchecReseau: 3 * 1000
+                        };
+                        this.polling = {
+                            nbRequetes: 0,
+                            numeroOrdre: 1,
+                            nbRepetitionEchecReseau: 15,
+                            delaiRepetitionEchecReseau: 3000,
+                            delaiTimeoutEchecReseau: 30 * 60 * 1000,
+                            delaiTimeoutRequete: 10 * 60 * 1000
+                        };
+                        Invocateur.abonner(ObjetInvocateur.events.modificationPresenceUtilisateur, _modificationPresenceUtilisateur, this);
+                        Invocateur.abonner(ObjetInvocateur.events.interruption_Requete, _eventInterruptionRequete, this);
+                        window.addEventListener('unload', _requeteBeaconDeconnexion.bind(this));
+                    }
+                );
+                let ObjetEtatUtilisateur = null;!
+                switch (aParametres.genreEspace) {
+                case EGenreEspace.Inscription:
+                    ObjetEtatUtilisateur = require('ObjetEtatUtilisateur.Professeur.js');
+                    break;
+                case EGenreEspace.Parent:
+                case EGenreEspace.Eleve:
+                case EGenreEspace.Entreprise:
+                case EGenreEspace.PrimParent:
+                case EGenreEspace.PrimEleve:
+                    ObjetEtatUtilisateur = require('ObjetEtatUtilisateur.Eleve.js');
+                    break;
+                case EGenreEspace.Tuteur:
+                case EGenreEspace.Accompagnant:
+                case EGenreEspace.PrimAccompagnant:
+                    ObjetEtatUtilisateur = require('ObjetEtatUtilisateur.Eleve.js');
+                    break;
+                case EGenreEspace.Etablissement:
+                case EGenreEspace.Administrateur:
+                case EGenreEspace.PrimPeriscolaire:
+                case EGenreEspace.PrimMairie:
+                    ObjetEtatUtilisateur = require('ObjetEtatUtilisateur.Personnel.js');
+                    break;
+                case EGenreEspace.PrimDirection:
+                case EGenreEspace.Professeur:
+                case EGenreEspace.Academie:
+                case EGenreEspace.PrimProfesseur:
+                    ObjetEtatUtilisateur = require('ObjetEtatUtilisateur.Professeur.js');
+                    break;
+                default:
+                    ;
+                }
+                global.GEtatUtilisateur = new ObjetEtatUtilisateur(aParametres.genreEspace);
+                global.GEtatUtilisateur.premierChargement = true;
+                this.notificationActive = false;
+                GTableau.editable = aParametres.genreEspace === EGenreEspace.Professeur;
+            } catch (e) {
+                window.messageErreur('Erreur sur initialisation de "GCommunication"');
+            }
+        };
+        this.lancerRequeteParametres(lParametres);
+        Invocateur.abonner('affichage_messagerie', _surNotificationAffichageMessagerie.bind(this));
+        UtilitaireMAJServeur.initialiser({
+            afficherMessageDelaiLong: !GEtatUtilisateur.estEspacePourEleve(),
+            afficherMessageImminentEleve: GEtatUtilisateur.estEspacePourEleve(),
+            cssImage: GEtatUtilisateur.pourPrimaire() ? 'Image_AlerteMiseAJourPRM' : 'Image_AlerteMiseAJourPRN'
+        });
+        if (aParam.fi) {
+            GEtatUtilisateur.forcerOngletInscription = true;
+        }
+        if (IE.optionsEspaceLocal) {
+            if (IE.optionsEspaceLocal.getModeAccessible) {
+                GEtatUtilisateur.setModeAccessible(IE.optionsEspaceLocal.getModeAccessible());
+            }
+            if (IE.optionsEspaceLocal.getAvecCodeCompetences) {
+                GEtatUtilisateur.setAvecCodeCompetences(IE.optionsEspaceLocal.getAvecCodeCompetences());
+            }
+            if (IE.optionsEspaceLocal.getAvecThemeAccessible) {
+                GEtatUtilisateur.setAvecThemeAccessible(IE.optionsEspaceLocal.getAvecThemeAccessible());
+            }
+        }
+    }
+}

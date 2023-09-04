@@ -1,5 +1,5 @@
 [package]
-name = "discord-clone"
+name = "pronote-plus"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,3 +14,10 @@ time = "*"
 walkdir = "*"
 headless_chrome = "*"
 anyhow = { version="*", features = ["backtrace"]}
+reqwest = { version="*", features = ["json"] }
+cbc = "*"
+md5 = "*"
+aes = "*"
+hex = "*"
+base64 = "*"
+rand = "*"

@@ -27,16 +27,14 @@ ObjetApplication()
       )
       )
         JSON = {
-          Uuid = lCommunication.serialiserIVAESPourSeveur()
+          Uuid = lCommunication.serialiserIVAESPourSeveur();
           identifiantNav // local value in storage
         }
         fn lancerRequete(
-            this.JSON = {
-                Uuid: args.uuidRSA,
-            };
+            set this.JSON
             this.appelAsynchrone();
         )
-      ).lancerRequete()
+      ).lancerRequete();
   )
 )
   fn initialisation(

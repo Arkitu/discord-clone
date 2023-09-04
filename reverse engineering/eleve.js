@@ -16142,7 +16142,7 @@ IE.fModule({
             }
             getChaineChiffreeAES(aChaine) {
                 return GCryptage.encrypter({
-                    genreCryptage: EGenreCryptage.AES,
+                    genreCryptage: EGenreCryptage.AES, // 3
                     chaine: aChaine,
                     cle: this.cleAES,
                     iv: this.ivAES

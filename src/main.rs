@@ -21,29 +21,12 @@ async fn main() -> Result<()> {
     let tcp = TcpListener::bind(HOST).await?;
 
     println!("Initializing API...");
-    let api = api::APIClient::new(None, true)?;
-    println!("API initialized !");
-    api.auth_demo().await?;
-    println!("Authenticated !");
-    api.navigate_to_homework().await?;
-    println!("to homework");
-    api.homework_go_to_date(time::Tm {
-        tm_year: 123,
-        tm_mon: 0,
-        tm_mday: 4,
-        tm_hour: 0,
-        tm_min: 0,
-        tm_sec: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_utcoff: 0,
-        tm_nsec: 0
-    }).await?;
-    println!("to date");
-    tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
-    api.screenshot(PathBuf::from("./screen.png"))?;
-    println!("screen");
+    let mut api = api::APIClient::new();
+    println!("API initialized");
+    let mut one = b"1".clone();
+    let encrypted = api.encrypt(&mut one)?;
+    println!("encrypted = {:?}", encrypted);
+    println!("utf8 = {:?}", std::str::from_utf8(encrypted)?);
 
     // loop {
     //     match tcp.accept().await {

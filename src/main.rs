@@ -23,10 +23,7 @@ async fn main() -> Result<()> {
     println!("Initializing API...");
     let mut api = api::APIClient::new();
     println!("API initialized");
-    let mut one = b"1".clone();
-    let encrypted = api.encrypt(&mut one)?;
-    println!("encrypted = {:?}", encrypted);
-    println!("utf8 = {:?}", std::str::from_utf8(encrypted)?);
+    api.connect().await?;
 
     // loop {
     //     match tcp.accept().await {

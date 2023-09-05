@@ -1,8 +1,8 @@
-use std::{sync::{Arc, atomic::{AtomicU32, Ordering}}, path::PathBuf, fs::File, io::Write};
+use std::{sync::{Arc, atomic::{AtomicU32, Ordering}}, path::PathBuf, fs::File, io::Write, fmt::{format, Display}};
 
 use aes::cipher::{KeyIvInit, BlockEncryptMut, block_padding::Pkcs7};
 use headless_chrome::{Browser, browser::Tab, protocol::cdp::{Page::CaptureScreenshotFormatOption, Target::CreateTarget}};
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, Context};
 use tokio::sync::RwLock;
 
 type AES_CBC_encryptor = cbc::Encryptor<aes::Aes128>;
@@ -10,6 +10,7 @@ type AES_CBC_encryptor = cbc::Encryptor<aes::Aes128>;
 const PRONOTE_URL: &str = "https://0332768e.index-education.net/pronote/viescolaire.html";
 const DEMO_PRONOTE_URL: &str = "https://demo.index-education.net/pronote/eleve.html";
 const NORMAL_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36";
+const PROXY_URL: &str = "https://51.38.82.225:80";
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Page {
@@ -184,6 +185,25 @@ impl HeadlessBrowserAPIClient {
     }
 }
 
+pub enum EncryptArgs {
+    String(String),
+    Bytes(Vec<u8>)
+}
+impl From<String> for EncryptArgs {
+    fn from(s: String) -> Self {
+        Self::String(s)
+    }
+}
+impl From<u32> for EncryptArgs {
+    fn from(i: u32) -> Self {
+        Self::String(i.to_string())
+    }
+}
+impl From<Vec<u8>> for EncryptArgs {
+    fn from(b: Vec<u8>) -> Self {
+        Self::Bytes(b)
+    }
+}
 
 pub struct APIClient {
     pub client: reqwest::Client,
@@ -195,45 +215,98 @@ pub struct APIClient {
 impl APIClient {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .proxy(reqwest::Proxy::http(PROXY_URL).unwrap())
+                .build().unwrap(),
             session_id: 0,
             numero_ordre: Arc::new(AtomicU32::new(1)),
             key_aes: [0; 16],
-            // genera
             iv_aes: rand::random::<[u8; 16]>()
         }
     }
-    pub fn encrypt<'a>(&self, chaine: &[u8]) -> Result<&'a [u8]> {
+    pub fn encrypt<'a>(&self, data: &'a mut EncryptArgs) -> Result<&'a [u8]> {
         let key = &md5::compute(self.key_aes).0;
         let iv = &md5::compute(self.iv_aes).0;
 
-        let mut buf = [0u8; 48];
-        buf[..chaine.len()].copy_from_slice(&chaine);
-        
-        let encrypted = AES_CBC_encryptor:: new(key.into(), iv.into())
-            .encrypt_padded_mut::<Pkcs7>(&mut buf, chaine.len()).unwrap();
+        let buf: &mut Vec<u8> = match data {
+            // We can use unsafe here because we don't use the string as a string after
+            EncryptArgs::String(s) => unsafe { s.as_mut_vec() } ,
+            EncryptArgs::Bytes( b) => b
+        };
 
-        Ok(&[0])
+        let len = buf.len();
+        buf.resize(len + 16 - (len % 16), 0);
+        let encrypted = AES_CBC_encryptor::new(key.into(), iv.into())
+            .encrypt_padded_mut::<Pkcs7>(buf, len).unwrap();
+        Ok(encrypted)
     }
-    async fn get_session_id(&mut self) -> Result<()> {
-        if self.session_id != 0 {
-            return Ok(())
-        }
+    async fn fetch_session_id(&mut self) -> Result<()> {
         let eleve_html = self.client.get("https://demo.index-education.net/pronote/eleve.html")
             .header("User-Agent", NORMAL_USER_AGENT)
             .send().await?;
         let eleve_html = eleve_html.text().await?;
-        self.session_id = eleve_html.split_once("h:'").ok_or(anyhow!("Invalide eleve.html"))?.1[..7].parse()?;
+        let session_id = &eleve_html.split_once("h:'").ok_or(anyhow!("Invalide eleve.html : {}", eleve_html))?.1[..7];
+        self.session_id = session_id.parse().with_context(|| format!("session_id = {}", session_id))?;
         Ok(())
     }
-    pub async fn connect(&self) -> Result<()> {
-        self.get_session_id().await?;
+    async fn send_request<N: Display, D: Display>(&self, name: N, data: D) -> Result<reqwest::Response> {
+        let mut numero_ordre = self.numero_ordre.fetch_add(1, Ordering::SeqCst).to_string().into();
+        let numero_ordre = self.encrypt(&mut numero_ordre)?;
+        let numero_ordre = hex::encode(numero_ordre);
+
+        let body = format!(r#"{{
+            "session": {},
+            "numeroOrdre": "{}",
+            "nom": "{}",
+            "donneesSec": {{
+                "donnees": {{
+                    {}
+                }}
+            }}
+        }}"#, self.session_id, numero_ordre, name, data);
+        println!("body = {}", body);
+
+        let res = self.client.post(format!("https://demo.index-education.net/pronote/appelfonction/3/{}/{}", self.session_id, numero_ordre))
+            .header("User-Agent", NORMAL_USER_AGENT)
+            .header("Content-Type", "application/json")
+            .header("Content-Length", body.len())
+            .header("Accept", "*/*")
+            .body(body)
+            .send().await?;
+        Ok(res)
+    }
+    pub async fn connect(&mut self) -> Result<()> {
+        self.fetch_session_id().await?;
         println!("session_id = {}", self.session_id);
 
         let base64_iv = base64::encode(&self.iv_aes);
 
-        let numero_ordre = self.numero_ordre.fetch_add(1, Ordering::SeqCst);
-        self.client.post(format!("https://demo.index-education.net/pronote/appelfonction/3/{}/{}", self.session_id, ))
+        let res = self.send_request("FonctionParametres", 
+            format!(
+                r#""Uuid": "{}",
+                "identifiantNav": """#,
+                base64_iv
+            )
+        ).await?;
+
+        println!("res = {:#?}", res);
+        println!("res.text = {:#?}", res.text().await?);
+
+        let res = self.send_request("Identification",
+            r#""genreConnexion": 0,
+            "genreEspace": 3,
+            "identifiant": "demonstration",
+            "pourENT": false,
+            "enConnexionAuto": false,
+            "demandeConnexionAuto": false,
+            "demandeConnexionAppliMobile": false,
+            "demandeConnexionAppliMobileJeton": false,
+            "uuidAppliMobile": "",
+            "loginTokenSAV": """#
+        ).await?;
+
+        println!("res = {:#?}", res);
+        println!("res.text = {:#?}", res.text().await?);
 
         Ok(())
     }

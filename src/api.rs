@@ -225,8 +225,10 @@ impl APIClient {
         }
     }
     pub fn encrypt<'a>(&self, data: &'a mut EncryptArgs) -> Result<&'a [u8]> {
-        let key = &md5::compute(self.key_aes).0;
-        let iv = &md5::compute(self.iv_aes).0;
+        println!("{:?}", &md5::compute([]).0);
+        println!("{:?}", &md5::compute([]).0);
+        let key = &md5::compute([]).0;
+        let iv = &md5::compute([]).0;
 
         let buf: &mut Vec<u8> = match data {
             // We can use unsafe here because we don't use the string as a string after

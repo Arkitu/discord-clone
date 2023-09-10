@@ -9,28 +9,77 @@ html, body {
 
 #top_bar {
     background-color: #19AA67;
-    padding: 10px;
+    padding: 0.3rem;
     justify-content: space-between;
     align-items: center;
     border-radius: 0 0 0.7rem 0.7rem;
 
-    .small_logo {
+    #top_left_logo {
         width: 4rem;
         height: 4rem;
     }
+    #top_left_logo:hover {
+        cursor: pointer;
+        transform: scale(1.1);
+    }
+    #top_left_logo:active {
+        transform: scale(1.1) translateY(2px);
+    }
+    // create a little popup window when clicking on the logo
+    #adding_popup {
+        display: block;
+        position: absolute;
+        top: 4rem;
+        left: 0;
+        width: 100%;
+        height: 10rem;
+        background-color: #19AA67;
+        border-radius: 0 0 0.7rem 0.7rem;
+
+        ul.category_selector {
+            display: flex;
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            li {
+                float: left;
+                padding: 0.5rem;
+                color: #323835;
+                font-size: 18px;
+                &:hover {
+                    cursor: pointer;
+                    //background-color: #19AA67;
+                }
+            }
+            li.selected {
+                // underline the selected category in green
+                border-color: #323835;
+                border-style: solid;
+                border-width: 0 0 0.4rem 0;
+            }
+        }
+        .content {
+            padding: 1rem;
+        }
+    }
+    #adding_popup.hide {
+        display: none;
+    }
 }
 
-#filter_panel {
-    display: flex;
-    width: 15rem;
-    margin: 3rem 1.5rem;
-    background: #323835;
-    border-radius: 25px;
-    flex: 1 1 auto;
+#timetable {
+    #filter_panel {
+        display: flex;
+        width: 15rem;
+        margin: 3rem 1.5rem;
+        background: #323835;
+        border-radius: 25px;
+        flex: 1 1 auto;
 
-    #filter_panel_title {
-        color: #FFFFFF;
-        font-size: 24px;
-        margin: 2rem auto;
+        #filter_panel_title {
+            color: #FFFFFF;
+            font-size: 24px;
+            margin: 2rem auto;
+        }
     }
 }

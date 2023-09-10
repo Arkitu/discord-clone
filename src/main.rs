@@ -8,6 +8,7 @@ use walkdir::WalkDir;
 use anyhow::Result;
 
 mod api;
+mod db;
 
 const HOST: &str = "127.0.0.1:8080";
 
@@ -20,52 +21,45 @@ async fn main() -> Result<()> {
 
     let tcp = TcpListener::bind(HOST).await?;
 
-    println!("Initializing API...");
-    let mut api = api::APIClient::new();
-    println!("API initialized");
-    api.connect().await?;
+    loop {
+        match tcp.accept().await {
+            Err(e) => eprintln!("Error accepting connection: {}", e),
+            Ok((stream, addr)) => {
+                println!("Got connection from: {}", addr);
+                let env = if dev_mode {
+                    // Reload environment
+                    Arc::new(create_env().await)
+                } else {
+                    env.clone()
+                };
+                tokio::spawn(async move {
+                    stream.readable().await.unwrap();
+                    let mut buffer = [0; 1024];
+                    stream.try_read(&mut buffer).unwrap();
 
-    // loop {
-    //     match tcp.accept().await {
-    //         Err(e) => eprintln!("Error accepting connection: {}", e),
-    //         Ok((stream, addr)) => {
-    //             println!("Got connection from: {}", addr);
-    //             let env = if dev_mode {
-    //                 // Reload environment
-    //                 Arc::new(create_env().await)
-    //             } else {
-    //                 env.clone()
-    //             };
-    //             let api = api.clone();
-    //             tokio::spawn(async move {
-    //                 stream.readable().await.unwrap();
-    //                 let mut buffer = [0; 1024];
-    //                 stream.try_read(&mut buffer).unwrap();
+                    let mut headers = [httparse::EMPTY_HEADER; 64];
+                    let mut req = httparse::Request::new(&mut headers);
+                    if let Err(e) = req.parse(buffer.as_ref()) {
+                        eprintln!("Error parsing request: {}", e);
+                        let res = http_bytes::Response::builder()
+                            .status(StatusCode::BAD_REQUEST)
+                            .body(())
+                            .unwrap();
+                        if let Err(e) = write_empty_response(res, stream).await {
+                            eprintln!("Error writing response: {}", e);
+                        };
+                        return;
+                    }
 
-    //                 let mut headers = [httparse::EMPTY_HEADER; 64];
-    //                 let mut req = httparse::Request::new(&mut headers);
-    //                 if let Err(e) = req.parse(buffer.as_ref()) {
-    //                     eprintln!("Error parsing request: {}", e);
-    //                     let res = http_bytes::Response::builder()
-    //                         .status(StatusCode::BAD_REQUEST)
-    //                         .body(())
-    //                         .unwrap();
-    //                     if let Err(e) = write_empty_response(res, stream).await {
-    //                         eprintln!("Error writing response: {}", e);
-    //                     };
-    //                     return;
-    //                 }
-
-    //                 if let Some(res) = handle_connection(req, env, api).await {
-    //                     if let Err(e) = write_response(res, stream).await {
-    //                         eprintln!("Error writing response: {}", e);
-    //                     }
-    //                 }
-    //             });
-    //         }
-    //     }
-    // }
-    Ok(())
+                    if let Some(res) = handle_connection(req, env).await {
+                        if let Err(e) = write_response(res, stream).await {
+                            eprintln!("Error writing response: {}", e);
+                        }
+                    }
+                });
+            }
+        }
+    }
 }
 
 async fn create_env() -> Environment<'static> {
@@ -92,7 +86,7 @@ async fn create_env() -> Environment<'static> {
     env
 }
 
-async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>, api: api::APIClient) -> Option<http::Response<Vec<u8>>> {
+async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>) -> Option<http::Response<Vec<u8>>> {
     let mut path = req.path.unwrap_or("/");
     println!("Got request for: {}", path);
     if path == "/" {

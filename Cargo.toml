@@ -21,3 +21,6 @@ aes = "*"
 hex = "*"
 base64 = "*"
 rand = "*"
+tokio-rusqlite = "*"
+rusqlite = { version="*", features = ["chrono"] }
+chrono = "*"

@@ -16,5 +16,6 @@
     >
         {% include "/img/small_logo.svg" %}
     </div>
-    {% include "/components/top_bar/adding_popup.html" %}
+    {% from "/components/top_bar/adding_popup.html" import adding_popup %}
+    {{ adding_popup(selected or "CLASSE") }}
 </div>

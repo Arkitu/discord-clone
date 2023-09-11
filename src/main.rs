@@ -1,8 +1,8 @@
 extern crate time;
 
-use std::{path::PathBuf, sync::Arc, borrow::Borrow, fs::read_to_string};
+use std::{path::PathBuf, sync::Arc, borrow::Borrow, fs::read_to_string, collections::HashMap};
 use tokio::{net::TcpListener, io::{AsyncWriteExt, AsyncWrite}};
-use minijinja::{Environment, context};
+use minijinja::{Environment, context, value::StructObject};
 use http_bytes::{http, http::StatusCode};
 use walkdir::WalkDir;
 use anyhow::Result;
@@ -86,11 +86,42 @@ async fn create_env() -> Environment<'static> {
     env
 }
 
+struct HttpArgs(HashMap<String, String>);
+impl HttpArgs {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+    pub fn insert(&mut self, k: String, v: String) {
+        self.0.insert(k, v);
+    }
+}
+impl StructObject for HttpArgs {
+    fn get_field(&self, name: &str) -> Option<minijinja::Value> {
+        match self.0.get(name) {
+            None => None,
+            Some(v) => Some(minijinja::Value::from(v.clone()))
+        }
+    }
+}
+
 async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>) -> Option<http::Response<Vec<u8>>> {
     let mut path = req.path.unwrap_or("/");
     println!("Got request for: {}", path);
     if path == "/" {
         path = "/index.html";
+    }
+
+    let mut args_str = "";
+    if let Some((p, a)) = path.split_once('?') {
+        path = p;
+        args_str = a;
+    }
+
+    let mut args = HttpArgs::new();
+    for arg in args_str.split('&') {
+        if let Some((name, value)) = arg.split_once('=') {
+            args.insert(name.into(), value.into());
+        }
     }
 
     let template = match env.get_template(path) {
@@ -130,7 +161,7 @@ async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environm
         }
     };
 
-    let res = match template.render(context! {}) {
+    let res = match template.render(minijinja::Value::from_struct_object(args)) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("Error rendering template: {}", e);

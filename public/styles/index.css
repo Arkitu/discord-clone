@@ -31,7 +31,7 @@ html, body {
   top: 4rem;
   left: 0;
   width: 100%;
-  height: 10rem;
+  height: auto;
   background-color: #19AA67;
   border-radius: 0 0 0.7rem 0.7rem;
 }
@@ -49,14 +49,43 @@ html, body {
 }
 #top_bar #adding_popup ul.category_selector li:hover {
   cursor: pointer;
+  color: #FFFFFF;
 }
 #top_bar #adding_popup ul.category_selector li.selected {
   border-color: #323835;
   border-style: solid;
   border-width: 0 0 0.4rem 0;
 }
-#top_bar #adding_popup .content {
+#top_bar #adding_popup #content {
   padding: 1rem;
+}
+#top_bar #adding_popup #content form {
+  display: flex;
+  flex-direction: column;
+}
+#top_bar #adding_popup #content form .entry label {
+  color: #323835;
+  font-size: 18px;
+  margin: 0.5rem 0;
+}
+#top_bar #adding_popup #content form .entry input {
+  border-radius: 0.5rem;
+  border: none;
+  padding: 0.2rem;
+  margin: 0.5rem 0;
+  font-size: 1rem;
+}
+#top_bar #adding_popup #content form input.submit {
+  border-radius: 0.5rem;
+  border: none;
+  padding: 0.5rem;
+  margin: 0.5rem 0;
+  font-size: 1.2rem;
+  background-color: #323835;
+  color: #FFFFFF;
+}
+#top_bar #adding_popup #content form input.submit:hover {
+  cursor: pointer;
 }
 #top_bar #adding_popup.hide {
   display: none;

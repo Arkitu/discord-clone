@@ -32,7 +32,7 @@ html, body {
         top: 4rem;
         left: 0;
         width: 100%;
-        height: 10rem;
+        height: auto;
         background-color: #19AA67;
         border-radius: 0 0 0.7rem 0.7rem;
 
@@ -48,7 +48,7 @@ html, body {
                 font-size: 18px;
                 &:hover {
                     cursor: pointer;
-                    //background-color: #19AA67;
+                    color: #FFFFFF;
                 }
             }
             li.selected {
@@ -58,8 +58,38 @@ html, body {
                 border-width: 0 0 0.4rem 0;
             }
         }
-        .content {
+        #content {
             padding: 1rem;
+            form {
+                display: flex;
+                flex-direction: column;
+                .entry {
+                    label {
+                        color: #323835;
+                        font-size: 18px;
+                        margin: 0.5rem 0;
+                    }
+                    input {
+                        border-radius: 0.5rem;
+                        border: none;
+                        padding: 0.2rem;
+                        margin: 0.5rem 0;
+                        font-size: 1rem;
+                    }
+                }
+                input.submit {
+                    border-radius: 0.5rem;
+                    border: none;
+                    padding: 0.5rem;
+                    margin: 0.5rem 0;
+                    font-size: 1.2rem;
+                    background-color: #323835;
+                    color: #FFFFFF;
+                    &:hover {
+                        cursor: pointer;
+                    }
+                }
+            }
         }
     }
     #adding_popup.hide {

@@ -1,6 +1,7 @@
 use rusqlite::OptionalExtension;
 use tokio_rusqlite::Connection;
 use chrono::NaiveDate;
+use anyhow::Result;
 
 pub struct Class {
     pub id: usize,
@@ -41,9 +42,15 @@ impl DB {
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY,
                     username TEXT NOT NULL,
-                    class_id INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
-                    deleted_at TEXT,
+                    deleted_at TEXT
+                )
+            ", ())?;
+            conn.execute("
+                CREATE TABLE IF NOT EXISTS user_classes (
+                    user_id INTEGER NOT NULL,
+                    class_id INTEGER NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users (id),
                     FOREIGN KEY (class_id) REFERENCES classes (id)
                 )
             ", ())?;
@@ -77,8 +84,7 @@ impl DB {
                     end TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     deleted_at TEXT,
-                    FOREIGN KEY (type_id) REFERENCES lesson_types (id),
-                    FOREIGN KEY (class_id) REFERENCES classes (id)
+                    FOREIGN KEY (type_id) REFERENCES lesson_types (id)
                 )
             ", ())?;
             conn.execute("
@@ -95,14 +101,15 @@ impl DB {
     }
     
     // classes
-    pub async fn insert_class(&self, name: String) {
+    pub async fn insert_class(&self, name: String) -> Result<()> {
         self.conn.call(|conn| {
             conn.execute("
                 INSERT INTO classes (name, created_at)
                 VALUES (?1, datetime('now'))
             ", [name])?;
             Ok(())
-        }).await.expect("Failed to create class");
+        }).await?;
+        Ok(())
     }
     pub async fn get_class(&self, id: usize) -> Option<Class> {
         self.conn.call(move |conn| {

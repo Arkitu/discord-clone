@@ -5,21 +5,14 @@
                 <li class="{{"selected" if item == selected else ""}}"
                     hx-get="/components/top_bar/adding_popup.html?selected={{item}}"
                     hx-target="#adding_popup"
-                    hx-swap="innerHTML"
+                    hx-swap="outerHTML"
                 >{{item}}</li>
         {% endfor %}
-        {# <li class="selected"
-            hx-get="/components/top_bar/adding_popup/classe_content.html"
-            hx-target="#adding_popup #content"
-            hx-swap="innerHTML"
-            onclick=""
-        >CLASSE</li>
-        <li>ÉLÈVE</li> #}
     </ul>
     <div id="content">
-        {% include "/components/top_bar/adding_popup/classe_content.html" %}
+        {% from "/components/top_bar/adding_popup/content.html" import content %}
+        {{ content(selected) }}
     </div>
-    {{ selected }}
 </div>
 {% endmacro %}
-{{ adding_popup(selected or "CLASSE") }}
+{{ adding_popup(selected) }}

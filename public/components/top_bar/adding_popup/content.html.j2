@@ -1,0 +1,20 @@
+{% macro content(selected="CLASSE") %}
+<form hx-put="/debug" hx-target="this">
+    {% if selected == "CLASSE" %}
+        <div class="entry">
+            <label for="name">Nom :</label>
+            <input type="text" name="classe_name" placeholder="1ère Trampoline">
+        </div>
+        // envoie une requête POST avec le nom de la classe
+        <input type="submit" value="Créer la classe">
+    {% elif selected == "ÉLÈVE" %}
+        <div class="entry">
+            <label for="name">Nom / Pseudo :</label>
+            <input type="text" name="name" placeholder="Ducobu33">
+        </div>
+    {% else %}
+        404 : catégorie inconnue. Veuillez contacter le developpeur.
+    {% endif %}
+</form>
+{% endmacro %}
+{{ content(selected) }}

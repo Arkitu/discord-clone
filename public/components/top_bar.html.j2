@@ -1,9 +1,5 @@
 <div id="top_bar">
     <div id="top_left_logo"
-        {# hx-get="/components/top_bar/popup_show.html"
-        hx-trigger="click"
-        hx-target="#top_bar #popup"
-        hx-swap="outerHTML" #}
         onclick="
             let popup = document.querySelector('#top_bar #adding_popup');
             console.log(popup);
@@ -17,5 +13,5 @@
         {% include "/img/small_logo.svg" %}
     </div>
     {% from "/components/top_bar/adding_popup.html" import adding_popup %}
-    {{ adding_popup(selected or "CLASSE") }}
+    {{ adding_popup(selected) }}
 </div>

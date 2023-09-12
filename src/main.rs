@@ -1,11 +1,12 @@
 extern crate time;
 
 use std::{path::PathBuf, sync::Arc, borrow::Borrow, fs::read_to_string, collections::HashMap};
+use db::DB;
 use tokio::{net::TcpListener, io::{AsyncWriteExt, AsyncWrite}};
 use minijinja::{Environment, context, value::StructObject};
 use http_bytes::{http, http::StatusCode};
 use walkdir::WalkDir;
-use anyhow::Result;
+use anyhow::Error;
 
 mod api;
 mod db;
@@ -13,11 +14,19 @@ mod db;
 const HOST: &str = "127.0.0.1:8080";
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<()> {
     let argv = std::env::args().collect::<Vec<_>>();
     let dev_mode = argv.contains(&"--dev".to_string());
     
     let env = Arc::new(create_env().await);
+
+    let db_path = if dev_mode {
+        Some("test.db")
+    } else {
+        None
+    };
+
+    let db = Arc::new(DB::new(db_path).await);
 
     let tcp = TcpListener::bind(HOST).await?;
 
@@ -32,6 +41,8 @@ async fn main() -> Result<()> {
                 } else {
                     env.clone()
                 };
+                let db = db.clone();
+                let dev_mode = dev_mode.clone();
                 tokio::spawn(async move {
                     stream.readable().await.unwrap();
                     let mut buffer = [0; 1024];
@@ -51,9 +62,46 @@ async fn main() -> Result<()> {
                         return;
                     }
 
-                    if let Some(res) = handle_connection(req, env).await {
-                        if let Err(e) = write_response(res, stream).await {
-                            eprintln!("Error writing response: {}", e);
+                    if dev_mode && req.path == Some("/debug") {
+                        println!("{:#?}", req);
+                        println!("{:#?}", std::str::from_utf8(&buffer));
+                        return
+                    }
+
+                    match handle_connection(req, env, db, dev_mode).await {
+                        Ok(Some(res)) => {
+                            if let Err(e) = write_response(res, stream).await {
+                                eprintln!("Error writing response: {}", e);
+                            }
+                        },
+                        Ok(None) => {},
+                        Err(HandleError::InternalServerError(e)) => {
+                            eprintln!("Internal server error: {}", e);
+                            let res = http_bytes::Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .body(b"Internal server error".to_vec())
+                                .unwrap();
+                            if let Err(e) = write_response(res, stream).await {
+                                eprintln!("Error writing response: {}", e);
+                            };
+                        },
+                        Err(HandleError::BadRequest) => {
+                            let res = http_bytes::Response::builder()
+                                .status(StatusCode::BAD_REQUEST)
+                                .body(b"Bad request".to_vec())
+                                .unwrap();
+                            if let Err(e) = write_response(res, stream).await {
+                                eprintln!("Error writing response: {}", e);
+                            };
+                        },
+                        Err(HandleError::NotFound) => {
+                            let res = http_bytes::Response::builder()
+                                .status(StatusCode::NOT_FOUND)
+                                .body(b"Not found".to_vec())
+                                .unwrap();
+                            if let Err(e) = write_response(res, stream).await {
+                                eprintln!("Error writing response: {}", e);
+                            };
                         }
                     }
                 });
@@ -86,6 +134,17 @@ async fn create_env() -> Environment<'static> {
     env
 }
 
+enum HandleError {
+    InternalServerError(Error),
+    BadRequest,
+    NotFound
+}
+impl From<Error> for HandleError {
+    fn from(e: Error) -> Self {
+        Self::InternalServerError(e)
+    }
+}
+
 struct HttpArgs(HashMap<String, String>);
 impl HttpArgs {
     pub fn new() -> Self {
@@ -104,7 +163,7 @@ impl StructObject for HttpArgs {
     }
 }
 
-async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>) -> Option<http::Response<Vec<u8>>> {
+async fn handle_connection<'a>(mut req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>, db: Arc<DB>, dev_mode: bool) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
     let mut path = req.path.unwrap_or("/");
     println!("Got request for: {}", path);
     if path == "/" {
@@ -120,8 +179,12 @@ async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environm
     let mut args = HttpArgs::new();
     for arg in args_str.split('&') {
         if let Some((name, value)) = arg.split_once('=') {
-            args.insert(name.into(), value.into());
+            args.insert(name.into(), url_escape::decode(value).into_owned());
         }
+    }
+
+    if path.starts_with("/api/") {
+        return handle_api(path, args, db).await;
     }
 
     let template = match env.get_template(path) {
@@ -134,43 +197,21 @@ async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environm
                     Err(e) => {
                         // TODO: Check if it's a directory and serve index.html
                         if let minijinja::ErrorKind::TemplateNotFound = e.kind() {
-                            println!("Template not found: {}", path);
-                            let res = http::Response::builder()
-                                .status(StatusCode::NOT_FOUND)
-                                .body((*b"<h1>Not found</h1>").into())
-                                .unwrap();
-                            return Some(res);
+                            return Err(HandleError::NotFound);
                         } else {
-                            eprintln!("Error getting template: {}", e);
-                            let res = http::Response::builder()
-                                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                                .body((*b"<h1>Internal server error</h1>").into())
-                                .unwrap();
-                            return Some(res);
+                            return Err(HandleError::InternalServerError(e.into()));
                         }
                     }
                 }
             } else {
-                eprintln!("Error getting template: {}", e);
-                let res = http::Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body((*b"<h1>Internal server error</h1>").into())
-                    .unwrap();
-                return Some(res);
+                return Err(HandleError::InternalServerError(e.into()));
             }
         }
     };
 
     let res = match template.render(minijinja::Value::from_struct_object(args)) {
         Ok(b) => b,
-        Err(e) => {
-            eprintln!("Error rendering template: {}", e);
-            let res = http::Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body((*b"<h1>Internal server error</h1>").into())
-                .unwrap();
-            return Some(res);
-        }
+        Err(e) => return Err(HandleError::InternalServerError(e.into()))
     };
     let res = res.as_bytes();
 
@@ -178,7 +219,27 @@ async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environm
         .body(res.to_owned())
         .unwrap();
 
-    Some(res)
+    Ok(Some(res))
+}
+
+async fn handle_api(path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
+    // split the "/api/"
+    let path = path[5..].to_string();
+    let mut path = path.split('/');
+
+    match path.next() {
+        Some("create_class") => {
+            let name = match args.0.get("name") {
+                None => return Err(HandleError::BadRequest),
+                Some(n) => n.clone()
+            };
+
+            db.insert_class(name).await?;
+        },
+        None | Some(_) => return Err(HandleError::BadRequest)
+    }
+
+    Ok(None)
 }
 
 /// Code from this : https://docs.rs/simple-server/latest/src/simple_server/lib.rs.html#1-495

@@ -164,7 +164,7 @@ impl StructObject for HttpArgs {
     }
 }
 
-async fn handle_connection<'a>(mut req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>, db: Arc<DB>, dev_mode: bool) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
+async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>, db: Arc<DB>, dev_mode: bool) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
     let mut path = req.path.unwrap_or("/");
     println!("Got request for: {}", path);
     if path == "/" {
@@ -185,7 +185,7 @@ async fn handle_connection<'a>(mut req: httparse::Request<'_, '_>, env: Arc<Envi
     }
 
     if path.starts_with("/api/") {
-        return handle_api(path, args, db).await;
+        return handle_api(req, path, args, db).await;
     }
 
     let template = match env.get_template(path) {
@@ -223,13 +223,17 @@ async fn handle_connection<'a>(mut req: httparse::Request<'_, '_>, env: Arc<Envi
     Ok(Some(res))
 }
 
-async fn handle_api(path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
+async fn handle_api(req: httparse::Request<'_, '_>, path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
     // split the "/api/"
     let path = path[5..].to_string();
     let mut path = path.split('/');
 
     match path.next() {
         Some("create_class") => {
+            if !req.method.map(|m| m == "PUT").unwrap_or(false) {
+                return Err(HandleError::BadRequest);
+            }
+
             let name = match args.0.get("name") {
                 None => return Err(HandleError::BadRequest),
                 Some(n) => n.clone()
@@ -238,6 +242,10 @@ async fn handle_api(path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<ht
             db.insert_class(name).await?;
         },
         Some("create_user") => {
+            if !req.method.map(|m| m == "PUT").unwrap_or(false) {
+                return Err(HandleError::BadRequest);
+            }
+
             let name = match args.0.get("name") {
                 None => return Err(HandleError::BadRequest),
                 Some(n) => n.clone()
@@ -246,7 +254,7 @@ async fn handle_api(path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<ht
                 None => return Err(HandleError::BadRequest),
                 Some(n) => n.clone()
             };
-            let password
+            let password_hash = argon2::hash_encoded(password, salt, config)
         }
         None | Some(_) => return Err(HandleError::BadRequest)
     }

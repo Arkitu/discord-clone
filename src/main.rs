@@ -1,4 +1,5 @@
 extern crate time;
+extern crate argon2;
 
 use std::{path::PathBuf, sync::Arc, borrow::Borrow, fs::read_to_string, collections::HashMap};
 use db::DB;
@@ -236,6 +237,17 @@ async fn handle_api(path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<ht
 
             db.insert_class(name).await?;
         },
+        Some("create_user") => {
+            let name = match args.0.get("name") {
+                None => return Err(HandleError::BadRequest),
+                Some(n) => n.clone()
+            };
+            let password = match args.0.get("password") {
+                None => return Err(HandleError::BadRequest),
+                Some(n) => n.clone()
+            };
+            let password
+        }
         None | Some(_) => return Err(HandleError::BadRequest)
     }
 

@@ -8,6 +8,7 @@ html, body {
 }
 
 #top_bar {
+  display: flex;
   background-color: #19AA67;
   padding: 0.3rem;
   justify-content: space-between;
@@ -15,6 +16,8 @@ html, body {
   border-radius: 0 0 0.7rem 0.7rem;
 }
 #top_bar #top_left_logo {
+  display: flex;
+  float: left;
   width: 4rem;
   height: 4rem;
 }
@@ -24,6 +27,13 @@ html, body {
 }
 #top_bar #top_left_logo:active {
   transform: scale(1.1) translateY(2px);
+}
+#top_bar #pp {
+  display: flex;
+  float: left;
+  width: auto;
+  height: auto;
+  margin: auto 0;
 }
 #top_bar #adding_popup {
   display: block;

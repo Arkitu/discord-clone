@@ -15,6 +15,14 @@ impl Class {
     }
 }
 
+pub struct User {
+    pub id: usize,
+    pub name: String,
+    pub password_hash: String,
+    pub created_at: NaiveDate,
+    pub deleted_at: Option<NaiveDate>
+}
+
 pub struct DB {
     pub conn: Connection,
 }
@@ -42,6 +50,7 @@ impl DB {
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY,
                     username TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     deleted_at TEXT
                 )
@@ -126,5 +135,34 @@ impl DB {
                 })
             }).optional()
         }).await.expect("Failed to get class")
+    }
+
+    // users
+    pub async fn insert_user(&self, name: String, password_hash: String) -> Result<()> {
+        self.conn.call(|conn| {
+            conn.execute("
+                INSERT INTO users (name, password_hash, created_at)
+                VALUES (?1, ?2, datetime('now'))
+            ", [name, password_hash])?;
+            Ok(())
+        }).await?;
+        Ok(())
+    }
+    pub async fn get_user(&self, id: usize) -> Option<User> {
+        self.conn.call(move |conn| {
+            conn.query_row("
+                SELECT id, name, password_hash, created_at, deleted_at
+                FROM classes
+                WHERE id = ?1
+            ", [id], |row| {
+                Ok(User {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    password_hash: row.get(2)?,
+                    created_at: row.get(3)?,
+                    deleted_at: row.get(4)?
+                })
+            }).optional()
+        }).await.expect("Failed to get user")
     }
 }

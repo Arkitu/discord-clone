@@ -1,7 +1,7 @@
 {% macro adding_popup(selected="CLASSE") %}
 <div id="adding_popup" {#class="hide"#}>
     <ul class="category_selector">
-        {% for item in ['CLASSE', 'ÉLÈVE'] %}
+        {% for item in ['CLASSE', 'ÉLÈVE', 'DEVOIR'] %}
                 <li class="{{"selected" if item == selected else ""}}"
                     hx-get="/components/top_bar/adding_popup.html?selected={{item}}"
                     hx-target="#adding_popup"

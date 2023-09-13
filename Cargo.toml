@@ -25,3 +25,4 @@ tokio-rusqlite = "*"
 rusqlite = { version="*", features = ["chrono"] }
 chrono = "*"
 url-escape = "*"
+rust-argon2 = "*"

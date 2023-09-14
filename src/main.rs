@@ -84,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
                         return
                     }
 
-                    match handle_connection(req, env, db, dev_mode).await {
+                    match handle_connection(&req, env, db, dev_mode).await {
                         Ok(Some(res)) => {
                             if let Err(e) = write_response(res, stream).await {
                                 eprintln!("Error writing response: {}", e);
@@ -102,6 +102,7 @@ async fn main() -> anyhow::Result<()> {
                             };
                         },
                         Err(HandleError::BadRequest) => {
+                            println!("Bad request");
                             let res = http_bytes::Response::builder()
                                 .status(StatusCode::BAD_REQUEST)
                                 .body(b"Bad request".to_vec())
@@ -111,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
                             };
                         },
                         Err(HandleError::NotFound) => {
+                            println!("Not found");
                             let res = http_bytes::Response::builder()
                                 .status(StatusCode::NOT_FOUND)
                                 .body(b"Not found".to_vec())
@@ -129,7 +131,6 @@ async fn main() -> anyhow::Result<()> {
 async fn create_env() -> Environment<'static> {
     let mut env = Environment::new();
     let template_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public");
-    println!("Getting templates from: {}", template_path.display());
     for entry in WalkDir::new(&template_path) {
         let entry = entry.unwrap();
         if entry.file_type().is_file() {
@@ -142,7 +143,6 @@ async fn create_env() -> Environment<'static> {
             if path.ends_with(".j2") {
                 path = path[..path.len() - 3].to_string();
             }
-            println!("Loading template: {}", path);
             let content = read_to_string(entry.path()).unwrap();
             env.add_template_owned(path.to_owned(), content).unwrap();
         }
@@ -161,6 +161,7 @@ impl From<Error> for HandleError {
     }
 }
 
+#[derive(Debug)]
 struct HttpArgs(HashMap<String, String>);
 impl HttpArgs {
     pub fn new() -> Self {
@@ -179,21 +180,15 @@ impl StructObject for HttpArgs {
     }
 }
 
-async fn handle_connection<'a>(req: http::Request<Option<String>>, env: Arc<Environment<'_>>, db: Arc<DB>, dev_mode: bool) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
+async fn handle_connection<'a>(req: &http::Request<Option<String>>, env: Arc<Environment<'_>>, db: Arc<DB>, dev_mode: bool) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
     let mut path = req.uri().path();
     println!("Got request for: {}", path);
     if path == "/" {
         path = "/index.html";
     }
 
-    let mut args_str = "";
-    if let Some((p, a)) = path.split_once('?') {
-        path = p;
-        args_str = a;
-    }
-
     let mut args = HttpArgs::new();
-    for arg in args_str.split('&') {
+    for arg in req.uri().query().unwrap_or("").split('&') {
         if let Some((name, value)) = arg.split_once('=') {
             args.insert(name.into(), url_escape::decode(value).into_owned());
         }
@@ -239,26 +234,28 @@ async fn handle_connection<'a>(req: http::Request<Option<String>>, env: Arc<Envi
 }
 
 fn get_put_args(body: &str) -> HttpArgs {
-    let mut args = HashMap::new();
-    for line in body.lines() {
-        let (name, value) = line.split_once('=');
-        args.insert(name.trim(), value.trim());
+    let mut args = HttpArgs::new();
+    for line in body.split('&') {
+        let (name, value) = match line.split_once('=') {
+            None => continue,
+            Some((n, v)) => (n, v)
+        };
+        args.insert(name.trim().to_string(), value.trim().to_string());
     }
-    HttpArgs(args)
+    args
 }
 
-async fn handle_api(req: http::Request<Option<String>>, path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
+async fn handle_api(req: &http::Request<Option<String>>, path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
     // split the "/api/"
     let path = path[5..].to_string();
-    let mut path = path.split('/');
-
-    match path.next() {
-        Some("create_class") => {
+    println!("New path: {:?}", path);
+    match path.as_str() {
+        "create_class" => {
             if req.method() != http::Method::PUT {
                 return Err(HandleError::BadRequest);
             }
 
-            let args = get_put_args(req.body());
+            let args = get_put_args(req.body().as_deref().unwrap_or("").trim_end_matches('\0'));
             
             let name = match args.0.get("name") {
                 None => return Err(HandleError::BadRequest),
@@ -267,10 +264,12 @@ async fn handle_api(req: http::Request<Option<String>>, path: &str, args: HttpAr
 
             db.insert_class(name).await?;
         },
-        Some("create_user") => {
+        "create_user" => {
             if req.method() != http::Method::PUT {
                 return Err(HandleError::BadRequest);
             }
+
+            let args = get_put_args(req.body().as_deref().unwrap_or("").trim_end_matches('\0'));
 
             let name = match args.0.get("name") {
                 None => return Err(HandleError::BadRequest),
@@ -280,9 +279,11 @@ async fn handle_api(req: http::Request<Option<String>>, path: &str, args: HttpAr
                 None => return Err(HandleError::BadRequest),
                 Some(n) => n.clone()
             };
-            let password_hash = argon2::hash_encoded(&password.into_bytes(), &name.into_bytes(), &argon2::Config::default());
+
+            let password_hash = argon2::hash_encoded(&password.into_bytes(), &md5::compute(&name.clone().into_bytes()).0, &argon2::Config::default()).unwrap();
+            println!("Creating user: {}", name);
         }
-        None | Some(_) => return Err(HandleError::BadRequest)
+        _ => return Err(HandleError::NotFound)
     }
 
     Ok(None)

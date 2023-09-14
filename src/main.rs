@@ -238,6 +238,15 @@ async fn handle_connection<'a>(req: http::Request<Option<String>>, env: Arc<Envi
     Ok(Some(res))
 }
 
+fn get_put_args(body: &str) -> HttpArgs {
+    let mut args = HashMap::new();
+    for line in body.lines() {
+        let (name, value) = line.split_once('=');
+        args.insert(name.trim(), value.trim());
+    }
+    HttpArgs(args)
+}
+
 async fn handle_api(req: http::Request<Option<String>>, path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
     // split the "/api/"
     let path = path[5..].to_string();
@@ -249,6 +258,8 @@ async fn handle_api(req: http::Request<Option<String>>, path: &str, args: HttpAr
                 return Err(HandleError::BadRequest);
             }
 
+            let args = get_put_args(req.body());
+            
             let name = match args.0.get("name") {
                 None => return Err(HandleError::BadRequest),
                 Some(n) => n.clone()
@@ -269,7 +280,7 @@ async fn handle_api(req: http::Request<Option<String>>, path: &str, args: HttpAr
                 None => return Err(HandleError::BadRequest),
                 Some(n) => n.clone()
             };
-            let password_hash = argon2::hash_encoded(password, salt, config)
+            let password_hash = argon2::hash_encoded(&password.into_bytes(), &name.into_bytes(), &argon2::Config::default());
         }
         None | Some(_) => return Err(HandleError::BadRequest)
     }

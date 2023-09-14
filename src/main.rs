@@ -50,8 +50,8 @@ async fn main() -> anyhow::Result<()> {
                     stream.try_read(&mut buffer).unwrap();
 
                     let mut headers = [httparse::EMPTY_HEADER; 64];
-                    let mut req = httparse::Request::new(&mut headers);
-                    if let Err(e) = req.parse(buffer.as_ref()) {
+                    let mut header_req = httparse::Request::new(&mut headers);
+                    if let Err(e) = header_req.parse(buffer.as_ref()) {
                         eprintln!("Error parsing request: {}", e);
                         let res = http_bytes::Response::builder()
                             .status(StatusCode::BAD_REQUEST)
@@ -63,7 +63,22 @@ async fn main() -> anyhow::Result<()> {
                         return;
                     }
 
-                    if dev_mode && req.path == Some("/debug") {
+                    let body = match std::str::from_utf8(&buffer) {
+                        Err(_) => None,
+                        Ok(b) => match b.split_once("\r\n\r\n") {
+                            None => None,
+                            Some((_, b)) => Some(b)
+                        }
+                    };
+
+                    let req = http::request::Builder::new()
+                        .method(header_req.method.unwrap())
+                        .uri(header_req.path.unwrap())
+                        .version(http::Version::HTTP_11)
+                        .body(body.map(|b| b.to_string()))
+                        .unwrap();
+
+                    if dev_mode && req.uri().path() == "/debug" {
                         println!("{:#?}", req);
                         println!("{:#?}", std::str::from_utf8(&buffer));
                         return
@@ -164,8 +179,8 @@ impl StructObject for HttpArgs {
     }
 }
 
-async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environment<'_>>, db: Arc<DB>, dev_mode: bool) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
-    let mut path = req.path.unwrap_or("/");
+async fn handle_connection<'a>(req: http::Request<Option<String>>, env: Arc<Environment<'_>>, db: Arc<DB>, dev_mode: bool) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
+    let mut path = req.uri().path();
     println!("Got request for: {}", path);
     if path == "/" {
         path = "/index.html";
@@ -223,14 +238,14 @@ async fn handle_connection<'a>(req: httparse::Request<'_, '_>, env: Arc<Environm
     Ok(Some(res))
 }
 
-async fn handle_api(req: httparse::Request<'_, '_>, path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
+async fn handle_api(req: http::Request<Option<String>>, path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
     // split the "/api/"
     let path = path[5..].to_string();
     let mut path = path.split('/');
 
     match path.next() {
         Some("create_class") => {
-            if !req.method.map(|m| m == "PUT").unwrap_or(false) {
+            if req.method() != http::Method::PUT {
                 return Err(HandleError::BadRequest);
             }
 
@@ -242,7 +257,7 @@ async fn handle_api(req: httparse::Request<'_, '_>, path: &str, args: HttpArgs, 
             db.insert_class(name).await?;
         },
         Some("create_user") => {
-            if !req.method.map(|m| m == "PUT").unwrap_or(false) {
+            if req.method() != http::Method::PUT {
                 return Err(HandleError::BadRequest);
             }
 

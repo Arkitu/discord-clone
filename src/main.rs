@@ -248,7 +248,6 @@ fn get_put_args(body: &str) -> HttpArgs {
 async fn handle_api(req: &http::Request<Option<String>>, path: &str, args: HttpArgs, db: Arc<DB>) -> Result<Option<http::Response<Vec<u8>>>, HandleError> {
     // split the "/api/"
     let path = path[5..].to_string();
-    println!("New path: {:?}", path);
     match path.as_str() {
         "create_class" => {
             if req.method() != http::Method::PUT {
@@ -280,6 +279,7 @@ async fn handle_api(req: &http::Request<Option<String>>, path: &str, args: HttpA
                 Some(n) => n.clone()
             };
 
+            dbg!(0);
             let password_hash = argon2::hash_encoded(&password.into_bytes(), &md5::compute(&name.clone().into_bytes()).0, &argon2::Config::default()).unwrap();
             println!("Creating user: {}", name);
         }

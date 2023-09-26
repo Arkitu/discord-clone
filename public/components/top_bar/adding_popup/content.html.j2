@@ -1,4 +1,4 @@
-{% macro content(selected="CLASSE") %}
+{% macro content(selected="ÉLÈVE") %}
     {% if selected == "CLASSE" %}
         <form hx-put="/api/create_class" hx-target="this">
             <div class="entry">
@@ -17,7 +17,7 @@
                 <label for="name">Mot de passe :</label>
                 <input type="password" name="password" placeholder="********">
             </div>
-            <input class="submit" type="submit" value="Créer l'élève">
+            <input class="submit" type="submit" value="S'inscrire / Se connecter">
         </form>
     {% elif selected == "" %}
     {% else %}
